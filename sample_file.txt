@@ -1,0 +1,16 @@
+mission "Test 1"
+    name "Test 1"
+
+mission "Test 2"
+    name "Test 2"
+    to offer
+        has "Test 1: done"
+
+
+    
+mission "Test 3"
+    name "Test 2"
+    to offer
+        has "Test 1: active"
+
+    
