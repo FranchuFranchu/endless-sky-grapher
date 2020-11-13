@@ -90,13 +90,20 @@ class MainProgram():
 
 
     def recursive_add_effect_nodes(self, node: DataNode, source: str):
+
+        assert node.tokens[0] == "on"
+
+        extra_label,edge_style = "", ""
+        if node.tokens[1] != "complete":
+            extra_label = "on " +node.tokens[1] + " "
+            edge_style = "style=dashed,"
         
         for i in node.children:
             if i.tokens[0] == "event":
 
-                self.graphviz += f'\t"{source}" -> "event: {i.tokens[1]}" [label="{i.tokens[2] if len(i.tokens) > 2 else ""}{("~" + str(i.tokens[3])) if len(i.tokens) > 3 else ""}"];\n'
+                self.graphviz += f'\t"{source}" -> "event: {i.tokens[1]}" [{edge_style}label="{extra_label}{i.tokens[2] if len(i.tokens) > 2 else ""}{("~" + str(i.tokens[3])) if len(i.tokens) > 3 else ""}"];\n'
             elif i.tokens[0] == "set":
-                self.graphviz += f'\t"{source}" -> "{i.tokens[1]}";\n'
+                self.graphviz += f'\t"{source}" -> "{i.tokens[1]}" [{edge_style}label="{extra_label}"];\n'
 
 
 
@@ -127,7 +134,7 @@ class MainProgram():
                 name = j.tokens[1]
             for j in i.filter(["to", "offer"]):
                 self.recursive_add_condition_nodes(j, i.tokens[1])
-            for j in i.filter(["on", "complete"]):
+            for j in i.filter_first("on"):
                 self.recursive_add_effect_nodes(j, i.tokens[1])
 
         for i in events:
@@ -149,11 +156,11 @@ class MainProgram():
             if variable_name not in self.defined_variables:
                 if variable_name.startswith("event: "):
                     variable_name = variable_name.split("event: ", 1)[1]
-                    self.graphviz += f'\t"external event: {variable_name}" [label="{variable_name}",fillcolor={Colors.EVENT}];\n'
+                    self.graphviz += f'\t"external event: {variable_name}" [label="external event:{variable_name}",fillcolor={Colors.EVENT}];\n'
 
                 if variable_name.endswith(": done"):
                     variable_name = variable_name.split(": done")[0]
-                    self.graphviz += f'\t"external mission: {variable_name}" [label="{variable_name}",fillcolor={Colors.MISSION}];\n'
+                    self.graphviz += f'\t"external mission: {variable_name}" [label="external mission: {variable_name}",fillcolor={Colors.MISSION}];\n'
 
         self.graphviz = GRAPHVIZ_FORMAT.format(self.graphviz)            
 
