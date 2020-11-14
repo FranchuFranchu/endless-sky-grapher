@@ -13,6 +13,7 @@ import html
 import codecs
 
 SHOW_EVENT_CODE = False
+READ_ONLY_CONDITIONS = ("random","net worth","cargo space", "passenger space", "flagship crew", "flagship required crew", "flagship bunks", "cargo attractiveness", "armament deterrence", "pirate attraction", "day", "month", "year")
 
 def escape_token(i):
     if not len({"\t", " ", "\n"} & set(i)):
@@ -39,6 +40,9 @@ class Colors:
     LINE_NOT = '"#EE3333"'
     LINE_HAS = '"#000000"'
     JOB = '"#9197f2"'
+    EXEC_EXPRESSION = '"#b5b5b5"'
+    EVAL_EXPRESSION = '"#b5b5b5"'
+    VARIABLE = '"#bada55"'
     OTHER_CONDITION = '"#a5a5a5"'
 
 GRAPHVIZ_FORMAT = """
@@ -62,7 +66,22 @@ class MainProgram():
     mentioned_variables: List[str] = field(default_factory=list)
     defined_variables: Set[str] = field(default_factory=set)
     added_special_nodes: Set[str] = field(default_factory=set)
-
+    
+    def is_terminal_value(self, token: str):
+        return token.isnumeric() or token in tuple("+-*/%") or token in READ_ONLY_CONDITIONS
+    
+    def recursive_add_conditional_expression(self, node: DataNode, name: str, add_first: bool = True):
+        # left value is always a single token
+        if add_first:
+            self.graphviz += f'"{node.tokens[0]}" -> "{name}";\n'
+            self.mentioned_variables.append(node.tokens[0])
+                
+        for i in node.tokens[2:]:
+            if not self.is_terminal_value(i):
+                self.graphviz += f'"{i}" -> "{name}";\n'
+                self.mentioned_variables.append(i)
+            
+    
     def recursive_add_condition_nodes(self, node: DataNode, top_destination: str):
         for i in node.children:
             if i.tokens[0] in ("or", "and"):
@@ -85,8 +104,10 @@ class MainProgram():
                     self.mentioned_variables.append(i.tokens[1])
             else:
                 # A condition
-                self.graphviz += f'\t"{" ".join(i.tokens)}_{top_destination}" [label="{" ".join(i.tokens)}",color={Colors.OTHER_CONDITION}];\n'
-                self.graphviz += f'\t"{" ".join(i.tokens)}_{top_destination}" -> "{top_destination}";\n'
+                node_name = f'{" ".join(i.tokens)}_{top_destination}'.replace('"', '\\"')
+                self.graphviz += f'\t"{node_name}" [label="{" ".join(i.tokens)}",color={Colors.EVAL_EXPRESSION}];\n'
+                self.graphviz += f'\t"{node_name}" -> "{top_destination}";\n'
+                self.recursive_add_conditional_expression(i, f'{node_name}')
 
 
     def recursive_add_effect_nodes(self, node: DataNode, source: str):
@@ -104,7 +125,18 @@ class MainProgram():
                 self.graphviz += f'\t"{source}" -> "event: {i.tokens[1]}" [{edge_style}label="{extra_label}{i.tokens[2] if len(i.tokens) > 2 else ""}{("~" + str(i.tokens[3])) if len(i.tokens) > 3 else ""}"];\n'
             elif i.tokens[0] == "set":
                 self.graphviz += f'\t"{source}" -> "{i.tokens[1]}" [{edge_style}label="{extra_label}"];\n'
-
+            elif len(i.tokens) > 1 and i.tokens[1] in ("++", "--"):
+                self.graphviz += f'\t"{source}" -> "{i.tokens[0]}" [{edge_style}label="{extra_label} {i.tokens[1]}"];\n'
+            elif len(i.tokens) > 2 and i.tokens[1] in ("=", "+=", "-="):
+                node_name = " ".join(escape_token(j) for j in i.tokens).replace('"', '\\"')
+                self.graphviz += f'\t"{source}" -> "{node_name}" [arrowhead=none];\n'
+                if node_name not in self.added_special_nodes:
+                    self.graphviz += f'"{node_name}" [label="{extra_label} {node_name}", fixedsize="false", width=0, height=0,color={Colors.EXEC_EXPRESSION}];'
+                    self.graphviz += f'\t"{node_name}" -> "{i.tokens[0]}";\n'
+                    self.recursive_add_conditional_expression(i, node_name, False)
+                    self.added_special_nodes.add(node_name)
+            
+                
 
 
     def main(self):
@@ -158,9 +190,11 @@ class MainProgram():
                     variable_name = variable_name.split("event: ", 1)[1]
                     self.graphviz += f'\t"external event: {variable_name}" [label="external event:{variable_name}",fillcolor={Colors.EVENT}];\n'
 
-                if variable_name.endswith(": done"):
+                elif variable_name.endswith(": done"):
                     variable_name = variable_name.split(": done")[0]
                     self.graphviz += f'\t"external mission: {variable_name}" [label="external mission: {variable_name}",fillcolor={Colors.MISSION}];\n'
+                else:
+                    self.graphviz += f'\t"{variable_name}" [label="{variable_name}",fillcolor={Colors.VARIABLE}];\n'
 
         self.graphviz = GRAPHVIZ_FORMAT.format(self.graphviz)            
 
