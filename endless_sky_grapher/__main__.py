@@ -138,7 +138,9 @@ class MainProgram():
 
         for i in l:
             if i.tokens[0] == "event":
-
+                if "wanderers: the eye" in i.tokens[1]:
+                    print(node)
+                    print(f"event: {i.tokens[1]}")
                 self.graphviz += f'\t"{source}" -> "event: {i.tokens[1]}" [{edge_style}label="{extra_label}{i.tokens[2] if len(i.tokens) > 2 else ""}{("~" + str(i.tokens[3])) if len(i.tokens) > 3 else ""}"];\n'
             elif i.tokens[0] == "set":
                 self.graphviz += f'\t"{source}" -> "{i.tokens[1]}" [{edge_style}label="{extra_label}"];\n'
